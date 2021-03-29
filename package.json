@@ -1,0 +1,14 @@
+{
+  "name": "biots",
+  "version": "0.1.0",
+  "description": "Autonomous agents framework",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Leonardo Solaas",
+  "license": "MIT",
+  "dependencies": {
+    "gulp": "^4.0.2"
+  }
+}
