@@ -10,5 +10,10 @@
   "license": "MIT",
   "dependencies": {
     "gulp": "^4.0.2"
+  },
+  "devDependencies": {
+    "gulp-concat": "^2.6.1",
+    "gulp-minify": "^3.1.0",
+    "gulp-rename": "^2.0.0"
   }
 }
