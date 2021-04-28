@@ -1,0 +1,11 @@
+ - Más layouts de vínculos
+    * fan
+
+ - Nodos arrastrables
+ - Render nodos
+    * Formas
+    * Colores (tomados de una foto)
+
+ - Vínculos: más fórmulas de atracción / repulsión
+ - Vínculos: incorporar factor "force"
+ - Hacer todos los valores tweeneables
