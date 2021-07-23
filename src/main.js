@@ -9,7 +9,7 @@ var def0 = {
         {id:"A", num: 6, mass:1, damp:0.3}
     ],
     links: [
-        {from:"A", to:"A", type:"r", layout:"fan", dst:{ min:100, dif:400, terms:"t", ease:"none", dur:45, bounce:false }, rch:1200, render:'x'},
+        {from:"A", to:"A", type:"linear", v1:0.2, layout:"fan", dst:{ min:100, dif:400, terms:"t", ease:"none", dur:45, bounce:false }, rch:1200, render:'x'},
         {from:"A", to:"A", type:"repel", layout:"all", dst:60, rch:300}
     ]
 }
@@ -47,12 +47,9 @@ function reset(fromEditor) {
     for(let g of _def.groups) {
         gs[g.id] = [];
         for(let i=0; i<g.num; i++) {
+            g.nrm = g.num == 1 ? 0 : (1 / (g.num)) * i;
+            g.nrm1 = g.num == 1 ? 1 : (1 / (g.num-1)) * i;
             let no = new Node(g);
-            //no.mass = g.mass;
-            //no.damp = g.damp;
-            //no.group = g.id;
-            no.nrm = g.num == 1 ? 0 : (1 / (g.num)) * i;
-            no.nrm1 = g.num == 1 ? 1 : (1 / (g.num-1)) * i;
             nodes.push(no);
             gs[g.id].push(no);
         }
@@ -63,32 +60,40 @@ function reset(fromEditor) {
             let fl = gs[l.from].length, tl = gs[l.to].length, n = 0;
             for(let i=0; i<fl; i++) {
                 for(let j=0; j<tl; j++) {
-                    let neo = new Link(gs[l.from][i], gs[l.to][j], l);
-                    neo.nrm = 1 / (fl*tl) * n;
-                    neo.nrm1 = 1 / (fl*tl-1) * n;
-                    console.log(1 / (fl*tl) * n, neo);
+                    l.nrm = 1 / (fl*tl) * n;
+                    l.nrm1 = 1 / (fl*tl-1) * n;
+                    new Link(gs[l.from][i], gs[l.to][j], l);
                     n++;
                 }
             }
         } else if(l.layout == "chain") {
             let n = min( gs[l.from].length, gs[l.to].length );
             for(let i=0; i<n-1; i++) {
+                l.nrm = 1 / (n-1) * i;
+                l.nrm1 = 1 / (n-2) * i;
                 new Link(gs[l.from][i], gs[l.to][i+1], l);
             }
         } else if(l.layout == "loop") {
             let n = min( gs[l.from].length, gs[l.to].length );
             for(let i=0; i<n; i++) {
+                l.nrm = 1 / (n) * i;
+                l.nrm1 = 1 / (n-1) * i;
                 new Link(gs[l.from][i], gs[l.to][(i+1) % n], l);
             }
         }  else if(l.layout == "comb") {
             if(l.from == l.to) continue; //No crear relaciones de nodos consigo mismos
             let n = min( gs[l.from].length, gs[l.to].length );
             for(let i=0; i<n; i++) {
+                l.nrm = 1 / (n) * i;
+                l.nrm1 = 1 / (n-1) * i;
                 new Link(gs[l.from][i], gs[l.to][i], l);
             }
         }  else if(l.layout == "fan") {
             let ini = l.from == l.to ? 1 : 0;
-            for(let i=ini; i<gs[l.from].length; i++) {
+            let n = gs[l.from].length;
+            for(let i=ini; i<n; i++) {
+                l.nrm = 1 / (n-ini) * i;
+                l.nrm1 = 1 / (n-(ini+1)) * i;
                 new Link(gs[l.from][i], gs[l.to][0], l);
             }
         }
@@ -148,14 +153,15 @@ class Node {
 class Link {
     constructor(a, b, l) {
         this.tweens = [];
-        this.nrm = 0;
-        this.nrm1 = 1;
+        this.nrm = 'nrm' in l ? l.nrm : 0;
+        this.nrm1 = 'nrm1' in l ? l.nrm1 : 1;
         this.gen = Math.random();
         this.a = a;
         this.b = b;
         this.dst = read(this, l, 'dst', 100);//'dst' in l ? parse(this, 'dst', l.dst) : 100;//readTerms(l.dst, this);
         this.rch = read(this, l, 'rch', 200);//'reach' in l ? parse(this, 'reach', l.reach) : 200;
         this.f = 1;
+        this.v1 = read(this, l, 'v1', 0);
         this.type = l.type;
         this.render = 'render' in l ? l.render : null;
 
@@ -174,18 +180,26 @@ class Link {
         let dif = p5.Vector.sub(this.b.pos, this.a.pos);
         let d = max(dif.mag(), 0.0001);
         let acc = 0;
+        let both = true;
 
         if(this.type == "repel") {
             acc = -maxVel * 1/(d*d);
-        } else {
+        } else if(this.type == "linear") {
             if(d < this.rch) {
-                acc = (d - this.dst) * map(d, 0, this.rch, 0.005, 0);
+                acc = (d - this.dst) * map(d, 0, this.rch, this.f/100, 0);
+            }
+        } else if(this.type == "skew") {
+            if(d < this.rch) {
+                acc = (d - this.dst) * map(d, 0, this.rch, this.f/100, 0);
+                dif.rotate(this.v1 * PI);
+                both = false;
             }
         }
+
         //dif.normalize();
         dif.setMag(acc);
         this.a.vel.add(dif);
-        this.b.vel.sub(dif);
+        if(both) this.b.vel.sub(dif);
 
         if(this.render != null) {
             stroke(0, 64);
@@ -208,6 +222,7 @@ class Tween {
         this.bounce = 'bounce' in val ? val.bounce : true;
         this.base = 0;
         this.time = 0;
+        this.active = true;
 
         let ts = val.terms.split('+')
         for(let t of ts) {
@@ -216,11 +231,16 @@ class Tween {
                 this.time = ps.length > 1 ? parseFloat(ps[1]) : 1;
             } else {
                 this.base += readTerm(t, me);
+                console.log('base', t, me);
             }
         }
+
+        console.log('tween', this);
     }
 
     step() {
+        if(! this.active) return;
+
         let x = this.base;
 
         if(this.dur > 0 && this.time > 0) {
@@ -228,6 +248,8 @@ class Tween {
             if(this.bounce) ti = floor(t / (this.dur+1)) % 2 == 0 ? t % (this.dur+1) : (this.dur+1) - (t % (this.dur+1));
             else ti = t % (this.dur+1);
             x += (1 / this.dur) * ti * this.time;
+        } else {
+            this.active = false;
         }
 
         if(x > 1) x = floor(x % 2) == 1 && this.bounce ? 1 - (x % 1) : x % 1;
@@ -265,7 +287,7 @@ function read(me, obj, prop, dft = 0) {
     return dft;
 }
 
-function parse(me, key, val) {
+/*function parse(me, key, val) {
     if(! isNaN(val)){
         me[key] = val;
     } else if(typeof val === 'string') {
@@ -273,32 +295,6 @@ function parse(me, key, val) {
     } else {
         me.tweens.push( new Tween(me, key, val) );
     }
-}
-
-/*function readTween(key, val, me) {
-    val.terms = 'terms' in c ? val.terms : "ix";
-
-    let out = {};
-    out.ease = 'ease' in c ? val.ease : "none";
-    out.pow = 'pow' in c ? readTerms(val.pow) : 1;;
-    out.min = 'min' in c ? readTerms(val.min) : 0;
-    out.dif = 'dif' in c ? readTerms(val.dif) : 1;
-    out.dur = 'dur' in c ? readTerms(val.dur) : 0;
-    out.bounce = 'bounce' in c ? val.bounce : true;
-    out.base = 0;
-    out.time = 0;
-
-    let ts = val.terms.split('+')
-    for(let t of ts) {
-        let ps = t.split('*');
-        if(ps[0] == 't' || ps[0] == 'time') {
-            out.time = ps.length > 1 ? parseFloat(ps[1]) : 1;
-        } else {
-            out.base += readTerm(t);
-        }
-    }
-
-    return out;
 }*/
 
 function readTerms(terms, me) {
